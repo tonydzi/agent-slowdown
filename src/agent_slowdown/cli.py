@@ -86,13 +86,15 @@ def cmd_orphans(args) -> int:
         print(BLIND)
         return 2
     try:
-        found, services = orphans.find(live, min_age_s=args.min_age * 60)
+        result = orphans.triage(live, min_age_s=args.min_age * 60)
     except orphans.ViewError as exc:
         print("Cannot tell which processes must be protected (%s). Nothing was checked or stopped." % exc)
         return 2
+    found, services, doubts = result["stop"], result["services"], result["doubt"]
     dead = orphans.zombies(live)
     if args.json:
         print(json.dumps({"orphans": [p.to_dict() for p in found], "skipped_services": services,
+                          "doubts": [dict(p.to_dict(), why=why) for p, why in doubts],
                           "zombies": len(dead)}, indent=1))
         return 1 if found else 0
     print("Orphaned agent helpers (parent gone, older than %d min): %d, %s" % (
@@ -102,6 +104,10 @@ def cmd_orphans(args) -> int:
                [[str(p.pid), _mb(p.rss_mb), "%.0f" % p.cpu, "%.1fh" % (p.age_s / 3600), p.cmd[:70]]
                 for p in found[:40]])
     print("Skipped as services (launchd/systemd owns them): %d" % services)
+    if doubts:
+        print("Left alone, needs your eye: %d" % len(doubts))
+        for proc, why in doubts[:20]:
+            print("  %d  %s  %s" % (proc.pid, why, proc.cmd[:60]))
     if dead:
         print("Zombies (state Z, hold no memory, only their parent can clear them): %d" % len(dead))
     if not found:

@@ -13,8 +13,8 @@ from unittest import mock
 from agent_slowdown import apps, cli, exclusions, mcp, memlimit, orphans, procs
 
 
-def proc(pid=100, ppid=1, rss_mb=50, cpu=0.0, age_s=3600, stat="S", exe="", cmd="node x"):
-    return procs.Proc(pid, ppid, rss_mb, cpu, age_s, stat, exe, cmd)
+def proc(pid=100, ppid=1, rss_mb=50, cpu=0.0, age_s=3600, stat="S", exe="", cmd="node x", uid=None):
+    return procs.Proc(pid, ppid, rss_mb, cpu, age_s, stat, exe, cmd, uid)
 
 
 class Parsing(unittest.TestCase):
@@ -25,11 +25,11 @@ class Parsing(unittest.TestCase):
         self.assertEqual(procs.parse_etime("junk"), 0)
 
     def test_ps_keeps_spaces_in_path_and_command(self):
-        main = "  10     1  2048  1,5 01:00 S  /Applications/My App.app/Contents/MacOS/My App --flag\n"
+        main = "  10     1  501  2048  1,5 01:00 S  /Applications/My App.app/Contents/MacOS/My App --flag\n"
         comm = "10 /Applications/My App.app/Contents/MacOS/My App\n"
         rows = procs.parse_ps(main, comm)
         self.assertEqual(len(rows), 1)
-        self.assertEqual((rows[0].pid, rows[0].rss_mb, rows[0].cpu, rows[0].age_s), (10, 2.0, 1.5, 60))
+        self.assertEqual((rows[0].pid, rows[0].rss_mb, rows[0].cpu, rows[0].age_s, rows[0].uid), (10, 2.0, 1.5, 60, 501))
         self.assertIn("--flag", rows[0].cmd)
         self.assertEqual(procs.label(rows[0]), "My App")
 
@@ -150,7 +150,63 @@ class Orphans(unittest.TestCase):
         kw.setdefault("managed", set())
         kw.setdefault("allow", [])
         kw.setdefault("service_check", lambda pid: False)
+        kw.setdefault("listening", set())
+        kw.setdefault("env_of", lambda pid: "")
+        kw.setdefault("transcripts", lambda: [])
         return orphans.find(rows, **kw)
+
+    def doubt(self, rows, **kw):
+        for key, value in (("managed", set()), ("allow", []), ("service_check", lambda pid: False),
+                           ("listening", set()), ("env_of", lambda pid: ""), ("transcripts", lambda: [])):
+            kw.setdefault(key, value)
+        result = orphans.triage(rows, **kw)
+        return result["stop"], [why for _, why in result["doubt"]]
+
+    def test_paused_is_doubt(self):
+        self.assertEqual(self.doubt([proc(pid=10, stat="T", cmd="rg x /")]), ([], ["paused on purpose"]))
+
+    def test_listening_is_doubt_and_blind_is_doubt(self):
+        row = proc(pid=10, cmd="python /srv/shared-mcp/server.py")
+        self.assertEqual(self.doubt([row], listening={10}), ([], ["listening on a port"]))
+        self.assertEqual(self.doubt([row], listening=None)[1], ["cannot tell if it listens on a port"])
+
+    def test_live_session_by_env_is_doubt(self):
+        rows = [proc(pid=7, ppid=2, cmd="claude --resume"), proc(pid=10, cmd="rg x /")]
+        self.assertEqual(self.doubt(rows, env_of=lambda pid: "A=1 CLAUDE_PID=7 B=2")[1], ["its session is still alive"])
+        self.assertEqual(len(self.doubt(rows, env_of=lambda pid: "CLAUDE_PID=999")[0]), 1)
+
+    def test_live_session_by_snapshot_time_is_doubt(self):
+        shell = "/bin/zsh -c source /h/.claude/shell-snapshots/snapshot-zsh-1000000000000-ab.sh"
+        rows = [proc(pid=7, ppid=2, age_s=500, cmd="claude"), proc(pid=10, cmd=shell)]
+        self.assertEqual(self.doubt(rows, now=1000000500.0)[1], ["its session is still alive"])
+        self.assertEqual(len(self.doubt(rows, now=1000090000.0)[0]), 1)
+
+    def test_recent_transcript_is_doubt(self):
+        shell = "/bin/zsh -c source /h/.claude/shell-snapshots/snapshot-zsh-1000000000000-ab.sh"
+        fresh = lambda: [(1000090000.0 - 60, 1000000010.0)]
+        self.assertEqual(self.doubt([proc(pid=10, cmd=shell)], now=1000090000.0, transcripts=fresh)[1],
+                         ["its session is still alive"])
+
+    @unittest.skipIf(os.name == "nt", "POSIX uid")
+    def test_another_users_process_is_ignored(self):
+        self.assertEqual(self.find([proc(pid=10, uid=os.getuid() + 1, cmd="rg x /")])[0], [])
+
+    def test_app_bundle_process_is_ignored(self):
+        self.assertEqual(self.find([proc(pid=10, cmd="/Applications/X.app/Contents/MacOS/rg foo")])[0], [])
+
+    def test_scratch_script_is_found_and_plain_python_is_not(self):
+        self.assertEqual(len(self.find([proc(pid=10, cmd="python3 /private/tmp/claude-501/x/evidence.py")])[0]), 1)
+        self.assertEqual(self.find([proc(pid=11, cmd="python3 /srv/backup.py")])[0], [])
+
+    def test_nested_service_cgroup(self):
+        text = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/foo.service/sub\n"
+        with mock.patch.object(orphans.procs, "IS_LINUX", True), \
+                mock.patch.object(Path, "read_text", return_value=text):
+            self.assertTrue(orphans._systemd_service(10))
+        text = "0::/user.slice/user-1000.slice/user@1000.service/app.slice/run-1.scope\n"
+        with mock.patch.object(orphans.procs, "IS_LINUX", True), \
+                mock.patch.object(Path, "read_text", return_value=text):
+            self.assertFalse(orphans._systemd_service(10))
 
     def test_dead_parent_helper_is_found(self):
         found, _ = self.find([proc(pid=10, cmd="node /x/foo-mcp/index.js")])
@@ -169,7 +225,7 @@ class Orphans(unittest.TestCase):
         self.assertEqual(self.find([row], service_check=lambda pid: True), ([], 1))
 
     def test_young_and_allowlisted_are_skipped(self):
-        self.assertEqual(self.find([proc(pid=10, age_s=60, cmd="rg foo /")])[0], [])
+        self.assertEqual(self.find([proc(pid=10, age_s=1800, cmd="rg foo /")])[0], [])
         self.assertEqual(self.find([proc(pid=10, cmd="node /x/my-mcp/i.js")], allow=["my-mcp"])[0], [])
 
     @unittest.skipIf(os.name == "nt", "POSIX parent rules")
@@ -310,7 +366,7 @@ class Cli(unittest.TestCase):
         with mock.patch.object(cli.memlimit, "status", return_value={"state": "unknown", "text": "x", "cgroup": None}):
             self.assertEqual(cli.main(["memlimit"]), 2)
         with mock.patch.object(cli.procs, "snapshot", return_value=[proc()]), \
-                mock.patch.object(cli.orphans, "find", side_effect=orphans.ViewError("x")), \
+                mock.patch.object(cli.orphans, "triage", side_effect=orphans.ViewError("x")), \
                 mock.patch.object(cli.orphans, "stop") as stop:
             self.assertEqual(cli.main(["orphans", "--kill"]), 2)
             stop.assert_not_called()
@@ -319,6 +375,9 @@ class Cli(unittest.TestCase):
         with mock.patch.object(cli.procs, "snapshot", return_value=[proc(pid=10, cmd="node /x/foo-mcp/i.js")]), \
                 mock.patch.object(cli.orphans, "_launchd_pids", return_value=set()), \
                 mock.patch.object(cli.orphans, "_systemd_service", return_value=False), \
+                mock.patch.object(cli.orphans, "_listen_pids", return_value=set()), \
+                mock.patch.object(cli.orphans, "_env_of", return_value=""), \
+                mock.patch.object(cli.orphans, "_transcripts", return_value=[]), \
                 mock.patch.object(cli.orphans, "read_allow", return_value=[]), \
                 mock.patch.object(cli.orphans, "stop") as stop:
             with mock.patch.object(orphans.procs, "IS_WIN", False):

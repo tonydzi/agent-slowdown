@@ -31,11 +31,11 @@ AGENT_RE = re.compile(r"^(claude|codex|cursor-agent|gemini|agy|opencode|grok|aid
 
 
 class Proc:
-    __slots__ = ("pid", "ppid", "rss_mb", "cpu", "age_s", "stat", "exe", "cmd")
+    __slots__ = ("pid", "ppid", "rss_mb", "cpu", "age_s", "stat", "exe", "cmd", "uid")
 
-    def __init__(self, pid, ppid, rss_mb, cpu, age_s, stat, exe, cmd):
+    def __init__(self, pid, ppid, rss_mb, cpu, age_s, stat, exe, cmd, uid=None):
         self.pid, self.ppid, self.rss_mb, self.cpu = pid, ppid, rss_mb, cpu
-        self.age_s, self.stat, self.exe, self.cmd = age_s, stat, exe, cmd
+        self.age_s, self.stat, self.exe, self.cmd, self.uid = age_s, stat, exe, cmd, uid
 
     def to_dict(self) -> dict:
         return {k: getattr(self, k) for k in self.__slots__}
@@ -63,13 +63,13 @@ def parse_ps(main: str, comm: str = "") -> List[Proc]:
             exe[int(parts[0])] = parts[1]
     out = []
     for line in main.splitlines():
-        parts = line.strip().split(None, 6)
-        if len(parts) < 7 or not parts[0].isdigit():
+        parts = line.strip().split(None, 7)
+        if len(parts) < 8 or not parts[0].isdigit():
             continue
-        pid, ppid, rss, cpu, etime, stat, cmd = parts
+        pid, ppid, uid, rss, cpu, etime, stat, cmd = parts
         try:
             out.append(Proc(int(pid), int(ppid), int(rss) / 1024, float(cpu.replace(",", ".")),
-                            parse_etime(etime), stat, exe.get(int(pid), ""), cmd))
+                            parse_etime(etime), stat, exe.get(int(pid), ""), cmd, int(uid)))
         except ValueError:
             continue
     return out
@@ -105,7 +105,7 @@ def snapshot() -> Optional[List[Proc]]:
             result = subprocess.run(["powershell", "-NoProfile", "-Command", script],
                                     capture_output=True, text=True, timeout=60)
             return parse_windows(result.stdout, time.time()) if result.returncode == 0 else None
-        main = subprocess.run(["ps", "-axww", "-o", "pid=,ppid=,rss=,pcpu=,etime=,stat=,command="],
+        main = subprocess.run(["ps", "-axww", "-o", "pid=,ppid=,uid=,rss=,pcpu=,etime=,stat=,command="],
                               capture_output=True, text=True, timeout=30)
         comm = subprocess.run(["ps", "-ax", "-o", "pid=,comm="],
                               capture_output=True, text=True, timeout=30)
@@ -191,12 +191,12 @@ def group(snapshot_rows: List[Proc]) -> List[dict]:
     return sorted(table.values(), key=lambda r: -r["rss_mb"])
 
 
+def is_agent(proc: Proc) -> bool:
+    """An agent CLI session. Node-hosted CLIs show up as `node .../bin/claude`."""
+    tokens = proc.cmd.split()
+    names = ([_base(proc.exe)] if proc.exe else []) + [_base(t) for t in tokens[:2]]
+    return any(AGENT_RE.match(n) for n in names if n)
+
+
 def count_sessions(snapshot_rows: List[Proc]) -> int:
-    """Live agent CLI sessions. Node-hosted CLIs show up as `node .../bin/claude`."""
-    total = 0
-    for proc in snapshot_rows:
-        tokens = proc.cmd.split()
-        names = ([_base(proc.exe)] if proc.exe else []) + [_base(t) for t in tokens[:2]]
-        if any(AGENT_RE.match(n) for n in names if n):
-            total += 1
-    return total
+    return sum(1 for proc in snapshot_rows if is_agent(proc))

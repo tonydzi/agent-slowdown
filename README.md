@@ -17,7 +17,7 @@ Python 3.9+, no dependencies, macOS, Linux and Windows. That command is read-onl
   2.3 GB      31     4  ChatGPT
 
 == Orphans ==
-Orphaned agent helpers (parent gone, older than 10 min): 3, 3 MB
+Orphaned agent helpers (parent gone, older than 60 min): 3, 3 MB
   29462    1 MB     0  82.9h  /bin/zsh -c source ~/.claude/shell-snapshots/snapshot-zsh-1...
 ```
 
@@ -28,7 +28,7 @@ Those three were real, found on our own machine: wait loops left by dead session
 | # | Cause | Command | What helps | Status |
 |---|-------|---------|------------|--------|
 | 1 | A stdio MCP server starts a copy in every session | `agent-slowdown mcp` | Remove it, or run one shared HTTP server | Fix works, measured |
-| 2 | Helpers outlive the session that started them | `agent-slowdown orphans` | Stop those whose parent died | Fix works, `--kill` needs your review |
+| 2 | Helpers outlive the session that started them | `agent-slowdown orphans` | Stop those whose parent and session both died | Fix works, read the list before `--kill` |
 | 3 | The agent runs `find /` or `rg x ~` | `agent-slowdown guard` | A hook that refuses it before it starts | Fix works, live in Claude Code |
 | 4 | Electron and desktop apps grow | `agent-slowdown apps` | Restart the app. **There is no other cure** | Report only |
 | 5 | The Linux memory limit is silently off | `agent-slowdown memlimit` | Start Claude in a user scope | Fix works, measured on Linux |
