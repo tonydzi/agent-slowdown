@@ -172,6 +172,7 @@ class Orphans(unittest.TestCase):
         self.assertEqual(self.find([proc(pid=10, age_s=60, cmd="rg foo /")])[0], [])
         self.assertEqual(self.find([proc(pid=10, cmd="node /x/my-mcp/i.js")], allow=["my-mcp"])[0], [])
 
+    @unittest.skipIf(os.name == "nt", "POSIX parent rules")
     def test_systemd_user_parent_counts_as_dead(self):
         rows = [proc(pid=5, ppid=1, cmd="/lib/systemd/systemd --user"),
                 proc(pid=10, ppid=5, cmd="node /x/foo-mcp/index.js")]
@@ -205,6 +206,7 @@ class Orphans(unittest.TestCase):
             with self.assertRaises(orphans.ViewError):
                 orphans.read_allow()
 
+    @unittest.skipIf(os.name == "nt", "POSIX signals")
     def test_identity_is_rechecked_before_sigkill(self):
         seen = iter([True, False])
         with mock.patch.object(orphans, "_still_same", side_effect=lambda p: next(seen)), \
