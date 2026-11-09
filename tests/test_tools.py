@@ -176,15 +176,15 @@ class Orphans(unittest.TestCase):
         self.assertEqual(len(self.doubt(rows, env_of=lambda pid: "CLAUDE_PID=999")[0]), 1)
 
     def test_live_session_by_snapshot_time_is_doubt(self):
-        shell = "/bin/zsh -c source /h/.claude/shell-snapshots/snapshot-zsh-1000000000000-ab.sh"
+        shell = "/bin/zsh -c source /h/.claude/shell-snapshots/snapshot-zsh-1700000000000-ab.sh"
         rows = [proc(pid=7, ppid=2, age_s=500, cmd="claude"), proc(pid=10, cmd=shell)]
-        self.assertEqual(self.doubt(rows, now=1000000500.0)[1], ["its session is still alive"])
-        self.assertEqual(len(self.doubt(rows, now=1000090000.0)[0]), 1)
+        self.assertEqual(self.doubt(rows, now=1700000500.0)[1], ["its session is still alive"])
+        self.assertEqual(len(self.doubt(rows, now=1700090000.0)[0]), 1)
 
     def test_recent_transcript_is_doubt(self):
-        shell = "/bin/zsh -c source /h/.claude/shell-snapshots/snapshot-zsh-1000000000000-ab.sh"
-        fresh = lambda: [(1000090000.0 - 60, 1000000010.0)]
-        self.assertEqual(self.doubt([proc(pid=10, cmd=shell)], now=1000090000.0, transcripts=fresh)[1],
+        shell = "/bin/zsh -c source /h/.claude/shell-snapshots/snapshot-zsh-1700000000000-ab.sh"
+        fresh = lambda: [(1700090000.0 - 60, 1700000010.0)]
+        self.assertEqual(self.doubt([proc(pid=10, cmd=shell)], now=1700090000.0, transcripts=fresh)[1],
                          ["its session is still alive"])
 
     @unittest.skipIf(os.name == "nt", "POSIX uid")
