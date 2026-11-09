@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use agent-slowdown in research or software, please cite it as below."
+title: "agent-slowdown"
+type: software
+authors:
+  - family-names: Dziatkovskii
+    given-names: Anton
+    orcid: "https://orcid.org/0000-0001-7408-3054"
+    affiliation: "Palo Alto AI Research Lab"
+repository-code: "https://github.com/tonydzi/agent-slowdown"
+url: "https://github.com/tonydzi/agent-slowdown"
+abstract: >-
+  Find out why parallel coding agents make your machine crawl: per-session MCP copies, orphaned helpers, broad searches, desktop app growth, a silently disabled Linux memory limit, and indexers.

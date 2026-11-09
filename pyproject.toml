@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agent-slowdown"
+dynamic = ["version"]
+description = "Why parallel Claude Code, Codex, Cursor and Antigravity sessions make your machine crawl: per-session MCP copies, orphaned helpers, broad searches, and what actually helps."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Anton Dziatkovskii" }]
+keywords = ["claude-code", "codex", "cursor", "antigravity", "mcp", "performance", "orphan-processes", "memory-leak"]
+classifiers = [
+  "Environment :: Console",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Topic :: System :: Monitoring",
+]
+dependencies = []
+
+[project.scripts]
+agent-slowdown = "agent_slowdown.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/tonydzi/agent-slowdown"
+Issues = "https://github.com/tonydzi/agent-slowdown/issues"
+
+[tool.hatch.version]
+path = "src/agent_slowdown/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_slowdown"]
