@@ -5,10 +5,10 @@
 `top` makes this hard to see. It lists one row per process, so forty 90 MB copies of the same helper rarely reach the first screen. This tool sums by name.
 
 ```bash
-pipx run --spec git+https://github.com/tonydzi/agent-slowdown agent-slowdown
+pipx run agent-slowdown
 ```
 
-Python 3.9+, no dependencies, macOS, Linux and Windows. That command is read-only: nothing is stopped or changed unless you pass `--kill`.
+Or `pip install agent-slowdown`, then run `agent-slowdown`. Python 3.9+, no dependencies, macOS, Linux and Windows. That command is read-only: nothing is stopped or changed unless you pass `--kill`.
 
 ```text
 == Biggest groups ==
@@ -53,7 +53,7 @@ There is no lazy flag for this in Claude Code. Deferred tools do not save the pr
 The hook needs the command to stay on your PATH, so install it first:
 
 ```bash
-pipx install git+https://github.com/tonydzi/agent-slowdown
+pipx install agent-slowdown
 agent-slowdown guard --print-config
 ```
 
