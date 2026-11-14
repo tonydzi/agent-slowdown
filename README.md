@@ -1,5 +1,62 @@
 # agent-slowdown
 
+Finds out why your computer crawls when several AI coding agents (Claude Code, Codex, Cursor) run at once, and fixes the parts that can be fixed.
+
+**Who it's for:** anyone running two or more coding agents on one Mac, Linux or Windows machine.
+**What you get:** a plain list of what eats your memory (for example 40 copies of one helper), and safe ways to stop it.
+
+## Quick start
+1. Install Python 3.9 or newer.
+2. Run `pipx run agent-slowdown` in a terminal. (Or `pip install agent-slowdown`, then `agent-slowdown`.)
+3. Read the two lists it prints: "Biggest groups" and "Orphans".
+
+**Done when:** you see a table of programs grouped by name with memory and copy counts. The default run is read-only and stops nothing.
+
+> Want an AI agent to do it for you? Paste this to Claude Code / Codex / Cursor:
+> "Read the 'For AI agents' section of https://github.com/tonydzi/agent-slowdown and set it up for me."
+
+## For AI agents
+
+### Preconditions
+- Python 3.9 or newer on macOS, Linux or Windows. No third-party dependencies.
+- `pipx` for the one-shot run, or `pip`. No accounts, keys or network access needed at run time.
+- Ask the human before: using `--kill`, editing `~/.claude/settings.json`, changing any MCP config.
+
+### Install
+```bash
+pipx install agent-slowdown     # keeps the command on PATH (needed for the guard hook)
+# or: pip install agent-slowdown
+# from a clone instead: pip install .
+```
+
+### Configure
+- Optional guard hook: run `agent-slowdown guard --print-config`, show the JSON block to the human, and only with their approval merge it into `~/.claude/settings.json`.
+- Optional allow list for daemons that must never be flagged as orphans: add part of the command line to the `allow.txt` path that `agent-slowdown orphans` prints.
+
+### Verify
+```bash
+agent-slowdown --version                # prints 0.1.1 (or newer)
+agent-slowdown guard --test "find /"    # prints "BLOCK: ..." and exits 2
+agent-slowdown guard --test "ls src"    # prints "allow" and exits 0
+agent-slowdown                          # read-only report
+```
+Report exit codes: `0` nothing found, `1` found something, `2` process list unreadable, `3` config file unreadable.
+From a clone, the test suite: `PYTHONPATH=src python -m unittest discover -s tests -t .` (73 tests, OK, 5 skipped on Windows).
+
+### Uninstall / rollback
+```bash
+pipx uninstall agent-slowdown   # or: pip uninstall agent-slowdown
+```
+Also remove the guard hook entry from `~/.claude/settings.json` if you added it.
+
+### Rules for the agent
+- Never pass `--kill` without showing the orphan list to the human and getting a yes.
+- Never add Defender exclusions or edit an MCP config on your own.
+- Report what the tool printed. Do not call a machine clean if an exit code was 2 or 3.
+- Nothing here needs secrets. Do not send the output anywhere outside the conversation.
+
+## Details
+
 **Your Mac or PC crawls when Claude Code, Codex, Cursor and Antigravity run side by side. This finds out why, and fixes the parts that can be fixed.**
 
 `top` makes this hard to see. It lists one row per process, so forty 90 MB copies of the same helper rarely reach the first screen. This tool sums by name.
