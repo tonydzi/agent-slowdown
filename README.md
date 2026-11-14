@@ -8,9 +8,9 @@ Finds out why your computer crawls when several AI coding agents (Claude Code, C
 ## Quick start
 1. Install Python 3.9 or newer.
 2. Run `pipx run agent-slowdown` in a terminal. (Or `pip install agent-slowdown`, then `agent-slowdown`.)
-3. Read the two lists it prints: "Biggest groups" and "Orphans".
+3. Read the sections it prints: "Biggest groups" (what eats memory), "MCP copies", "Orphans" (leftover processes), "Desktop apps" and, on Linux, "Linux memory limit".
 
-**Done when:** you see a table of programs grouped by name with memory and copy counts. The default run is read-only and stops nothing.
+**Done when:** you see a table of programs grouped by name with memory and copy counts. The default run is read-only and stops nothing. Its exit code is `1` when it found something (for example orphans or duplicate copies): that is a finding, not a crash.
 
 > Want an AI agent to do it for you? Paste this to Claude Code / Codex / Cursor:
 > "Read the 'For AI agents' section of https://github.com/tonydzi/agent-slowdown and set it up for me."
@@ -40,8 +40,8 @@ agent-slowdown guard --test "find /"    # prints "BLOCK: ..." and exits 2
 agent-slowdown guard --test "ls src"    # prints "allow" and exits 0
 agent-slowdown                          # read-only report
 ```
-Report exit codes: `0` nothing found, `1` found something, `2` process list unreadable, `3` config file unreadable.
-From a clone, the test suite: `PYTHONPATH=src python -m unittest discover -s tests -t .` (73 tests, OK, 5 skipped on Windows).
+Report exit codes (the worst code of all sections wins): `0` nothing found, `1` found something, `2` process list unreadable, `3` config file unreadable.
+From a clone, the test suite: `PYTHONPATH=src python -m unittest discover -s tests -t .` (73 tests, OK, 5 skipped on Windows). In Windows PowerShell: `$env:PYTHONPATH='src'; python -m unittest discover -s tests -t .`.
 
 ### Uninstall / rollback
 ```bash
