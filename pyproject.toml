@@ -5,12 +5,12 @@ build-backend = "hatchling.build"
 [project]
 name = "agent-slowdown"
 dynamic = ["version"]
-description = "Why parallel Claude Code, Codex, Cursor and Antigravity sessions make your machine crawl: per-session MCP copies, orphaned helpers, broad searches, and what actually helps."
+description = "Why parallel Claude Code, Codex, Cursor and Antigravity sessions make your machine crawl: per-session MCP copies, orphaned helpers, broad searches, hook storms, and what actually helps."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "Anton Dziatkovskii" }]
-keywords = ["claude-code", "codex", "cursor", "antigravity", "mcp", "performance", "orphan-processes", "memory-leak"]
+keywords = ["claude-code", "codex", "cursor", "antigravity", "mcp", "performance", "orphan-processes", "memory-leak", "hooks"]
 classifiers = [
   "Environment :: Console",
   "License :: OSI Approved :: MIT License",

@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from . import __version__, apps, exclusions, guard, mcp, memlimit, orphans, procs
+from . import __version__, apps, exclusions, guard, hooks, mcp, memlimit, orphans, procs
 
 BLIND = "cannot read the process list on this machine, so this check says nothing"
 
@@ -176,6 +176,52 @@ def cmd_exclusions(args) -> int:
     return 0
 
 
+MOMENTS = (("tool_call", "each Bash/shell tool call"), ("prompt", "each prompt you send"),
+           ("session", "each session start"))
+
+
+def cmd_hooks(args) -> int:
+    result = hooks.audit(measure=not args.no_time)
+    if args.json:
+        print(json.dumps(result, indent=1, default=str))
+    else:
+        if not result["hooks"]:
+            print("No hooks found in Claude Code, Codex, Gemini CLI or Cursor configs.")
+        for agent, row in sorted(result["summary"].items()):
+            print("%s:" % agent)
+            for key, label in MOMENTS:
+                cell = row[key]
+                if not cell["hooks"]:
+                    continue
+                cost = "" if cell["startup_ms"] is None else ", ~%d ms of interpreter start-up alone" % cell["startup_ms"]
+                if cell["unknown_startup"]:
+                    cost += " (+%d not timed)" % cell["unknown_startup"]
+                print("  %-28s %2d hooks, >= %d processes%s" % (label + ":", cell["hooks"], cell["processes"], cost))
+        if result["startup_ms"]:
+            print("\nBare start-up measured here: " + ", ".join(
+                "%s %s" % (k, "?" if v is None else "%.0f ms" % v) for k, v in sorted(result["startup_ms"].items())))
+            print("Agents run matching hooks in parallel, so this is CPU you pay per event, not added wait.")
+        flagged = [h for h in result["hooks"] if h["findings"]]
+        if flagged:
+            print("\nWhat to fix:")
+            for hook in flagged:
+                print("  [%s %s%s] %s" % (hook["agent"], hook["event"],
+                                          " " + hook["matcher"] if hook["matcher"] else "", hook["command"][:90]))
+                for text in hook["findings"]:
+                    print("      - " + text)
+        for dup in result["duplicates"]:
+            print("\nRuns %dx on %s %s (registered more than once): %s" % (
+                dup["times"], dup["agent"], dup["event"], dup["command"][:80]))
+        print("\nOne dispatcher per event that runs the rest in-process beats N separate hooks: docs/07-hooks.md")
+        print("cannot judge: %d of %d config files" % (
+            len(result["unreadable"]), len(result["unreadable"]) + len({h["file"] for h in result["hooks"]})))
+        for item in result["unreadable"]:
+            print("  unreadable: " + item)
+    if result["unreadable"] and not result["hooks"]:
+        return 3
+    return 1 if any(h["findings"] for h in result["hooks"]) or result["duplicates"] else 0
+
+
 def cmd_doctor(args) -> int:
     worst = 0
     for title, handler, extra in (
@@ -183,6 +229,7 @@ def cmd_doctor(args) -> int:
             ("MCP copies", cmd_mcp, {}),
             ("Orphans", cmd_orphans, {"min_age": orphans.DEFAULT_MIN_AGE_S // 60, "kill": False}),
             ("Desktop apps", cmd_apps, {"warn_gb": apps.DEFAULT_WARN_GB}),
+            ("Hooks", cmd_hooks, {"no_time": False}),
             ("Linux memory limit", cmd_memlimit, {"test": False})):
         print("\n== %s ==" % title)
         worst = max(worst, handler(argparse.Namespace(json=False, **extra)))
@@ -215,6 +262,9 @@ def build_parser() -> argparse.ArgumentParser:
     limit = sub.add_parser("memlimit", help="does CLAUDE_CODE_TOOL_MEMORY_LIMIT work here (Linux)")
     limit.add_argument("--test", action="store_true", help="allocate past a real scope limit")
     sub.add_parser("exclusions", help="print Spotlight and Defender steps (changes nothing)")
+    hk = sub.add_parser("hooks", help="what your hooks start on every tool call, prompt and session")
+    hk.add_argument("--no-time", action="store_true", help="skip timing bare interpreters")
+    hk.add_argument("--json", action="store_true")
     return parser
 
 
@@ -222,7 +272,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     handlers = {"top": cmd_top, "mcp": cmd_mcp, "orphans": cmd_orphans, "guard": cmd_guard,
                 "apps": cmd_apps, "memlimit": cmd_memlimit, "exclusions": cmd_exclusions,
-                "doctor": cmd_doctor, None: cmd_doctor}
+                "hooks": cmd_hooks, "doctor": cmd_doctor, None: cmd_doctor}
     return handlers[args.command](args)
 
 

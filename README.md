@@ -80,7 +80,7 @@ Orphaned agent helpers (parent gone, older than 60 min): 3, 3 MB
 
 Those three were real, found on our own machine: wait loops left by dead sessions, still polling every 15 seconds for a file that would never appear, 88 hours later.
 
-## Six causes, what helps, and how sure we are
+## Seven causes, what helps, and how sure we are
 
 | # | Cause | Command | What helps | Status |
 |---|-------|---------|------------|--------|
@@ -90,8 +90,9 @@ Those three were real, found on our own machine: wait loops left by dead session
 | 4 | Electron and desktop apps grow | `agent-slowdown apps` | Restart the app. **There is no other cure** | Report only |
 | 5 | The Linux memory limit is silently off | `agent-slowdown memlimit` | Start Claude in a user scope | Fix works, measured on Linux |
 | 6 | Spotlight and antivirus scan agent folders | `agent-slowdown exclusions` | `.noindex` folders; Defender exclusions are your call | Spotlight measured, Defender not |
+| 7 | Dozens of hooks start a process each on every tool call, prompt and session start | `agent-slowdown hooks` | One dispatcher per event that runs guards in-process; drop shell wrappers, npx and duplicates | Fix works, measured; the command reads configs and never runs your hooks |
 
-Details and numbers: [MCP copies](docs/01-mcp-copies.md) · [orphans](docs/02-orphans.md) · [broad searches](docs/03-broad-searches.md) · [desktop apps](docs/04-desktop-apps.md) · [Linux memory limit](docs/05-linux-memory-limit.md) · [indexers](docs/06-indexers.md)
+Details and numbers: [MCP copies](docs/01-mcp-copies.md) · [orphans](docs/02-orphans.md) · [broad searches](docs/03-broad-searches.md) · [desktop apps](docs/04-desktop-apps.md) · [Linux memory limit](docs/05-linux-memory-limit.md) · [indexers](docs/06-indexers.md) · [hooks](docs/07-hooks.md)
 
 ## The one that costs the most
 
